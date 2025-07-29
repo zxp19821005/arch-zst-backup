@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Arch ZST Backup
+Comment=arch-zst-backup
+Name[zh_CN]=Arch ZST 备份
+Exec=arch-zst-backup
+Comment[zh_CN]=arch-zst-backup
+Icon=arch-zst-backup
+Type=Application
+StartupNotify=false
+Categories=System;
