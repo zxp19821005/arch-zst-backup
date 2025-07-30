@@ -10,11 +10,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
-from modules.logger import log
-from modules.config_manager import config_manager
-from modules.directory_scanner import directory_scanner
-from modules.file_operations import file_operations
+from src.modules.logger import log
+from src.modules.config_manager import config_manager
+from src.modules.directory_scanner import directory_scanner
+from src.modules.file_operations import file_operations
 from modules.version_comparator import version_comparator
+from modules.list_display_manager import TableDisplayManager
 
 class BackupManagerPage(QWidget):
     """备份软件管理页面"""
@@ -32,15 +33,10 @@ class BackupManagerPage(QWidget):
         
         # 按钮栏
         button_layout = QHBoxLayout()
-        
-        # 全选复选框
-        self.select_all_checkbox = QCheckBox("全选")
-        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
-        button_layout.addWidget(self.select_all_checkbox)
-        
+
         # 按钮布局
         button_layout.addStretch()  # 将按钮推到右侧
-        
+
         # 刷新按钮
         self.scan_button = QPushButton("刷新")
         self.scan_button.clicked.connect(self.scan_backup_dir)
@@ -59,61 +55,25 @@ class BackupManagerPage(QWidget):
         
         # 软件包表格
         self.table = QTableWidget()
-        
-        # 从配置加载显示设置
-        config = config_manager.load_config()
-        display_settings = config.get('displaySettings', {})
-        
-        # 默认列设置
-        default_columns = ["选择", "名称", "Epoch", "版本", "发布号", "架构", "位置"]
-        
-        # 应用可见性设置
-        visible_columns = []
-        column_indices = {}  # 保存列名到索引的映射
-        for i, col in enumerate(default_columns[1:]):  # 跳过"选择"列
-            display_setting = display_settings.get(col, {})
-            if display_setting.get('visible', True):
-                visible_columns.append(col)
-                column_indices[col] = i + 1  # 记录可见列的索引
-        
-        # 设置表格列数
-        self.table.setColumnCount(len(visible_columns) + 1)  # +1 为"选择"列
+        self.table.horizontalHeader().setStretchLastSection(True)
 
-        # 隐藏不可见的列
-        for i, col in enumerate(default_columns[1:], start=1):  # 从1开始跳过"选择"列
-            if col not in visible_columns:
-                self.table.setColumnHidden(i, True)
-        
-        # 设置表头
-        self.table.setHorizontalHeaderLabels(["选择"] + visible_columns)
-        
-        # 设置列宽调整模式
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        
-        # 设置表头居中
-        header = self.table.horizontalHeader()
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # 应用对齐方式设置
-        for col_name in visible_columns:
-            col_index = column_indices[col_name]
-            alignment = display_settings.get(col_name, {}).get('alignment', "center")
-            align_flag = Qt.AlignmentFlag.AlignCenter
-            if alignment == "left":
-                align_flag = Qt.AlignmentFlag.AlignLeft
+        # 使用预定义的列配置
+        from modules.list_display_manager import COLUMN_CONFIGS
+        column_config = COLUMN_CONFIGS["backup_manager"]
+        column_names = list(column_config.keys())
+        self.list_display_manager = TableDisplayManager(self.table, column_config)
+        # 应用 displaySettings 中的列对齐方式
+        for column_name, settings in column_config.items():
+            column_index = list(column_config.keys()).index(column_name)
+            alignment = settings.get("alignment", "left")
+            if alignment == "center":
+                self.table.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
             elif alignment == "right":
-                align_flag = Qt.AlignmentFlag.AlignRight
-
-            # 设置列的对齐方式
-            self.table.horizontalHeaderItem(col_index).setTextAlignment(align_flag | Qt.AlignmentFlag.AlignVCenter)
-            
-            self.table.horizontalHeaderItem(col).setTextAlignment(align_flag | Qt.AlignmentFlag.AlignVCenter)
-        
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+                self.table.horizontalHeader().setDefaultAlignment(Qt.AlignRight)
+            else:
+                self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
         main_layout.addWidget(self.table)
-        
+        self.table.setVisible(True)  # 显式设置表格可见
         self.setLayout(main_layout)
         log.info("备份软件管理页面UI设置完成")
     
@@ -164,43 +124,13 @@ class BackupManagerPage(QWidget):
     
     def update_table(self):
         """更新表格显示"""
-        self.table.setRowCount(len(self.packages))
-        
-        for row, pkg in enumerate(self.packages):
-            # 选择复选框
-            checkbox = QCheckBox()
-            checkbox.setChecked(False)
-            self.table.setCellWidget(row, 0, checkbox)
-            
-            # 其他信息
-            self.table.setItem(row, 1, QTableWidgetItem(pkg.get('name', '')))
-            # 只在 epoch 存在且不为 '0' 时显示
-            epoch = pkg.get('epoch', '0')
-            self.table.setItem(row, 2, QTableWidgetItem(epoch if epoch != '0' else ''))
-            self.table.setItem(row, 3, QTableWidgetItem(pkg.get('version', '')))
-            self.table.setItem(row, 4, QTableWidgetItem(pkg.get('pkgrel', '')))
-            self.table.setItem(row, 5, QTableWidgetItem(pkg.get('arch', '')))
-            self.table.setItem(row, 6, QTableWidgetItem(pkg.get('location', '')))
-        
-        log.info(f"更新表格显示，共 {len(self.packages)} 行")
+        self.list_display_manager.update_table(self.packages)
     
-    def toggle_select_all(self, state):
-        """全选/取消全选"""
-        is_checked = self.select_all_checkbox.isChecked()
-        for row in range(self.table.rowCount()):
-            checkbox = self.table.cellWidget(row, 0)
-            if checkbox:
-                checkbox.setChecked(is_checked)
-        log.info(f"{'全选' if is_checked else '取消全选'}所有软件包")
+    
     
     def get_selected_packages(self):
         """获取选中的软件包"""
-        selected = []
-        for row in range(self.table.rowCount()):
-            checkbox = self.table.cellWidget(row, 0)
-            if checkbox and checkbox.isChecked():
-                selected.append(self.packages[row])
-        return selected
+        return self.list_display_manager.get_selected_packages(self.packages)
     
     def deduplicate_packages(self):
         """去重软件包"""

@@ -18,36 +18,46 @@ class DirectoryScanner:
         :param recursive: 是否递归扫描子目录
         :return: 包含软件包信息的字典列表
         """
-        if not os.path.isdir(directory):
+        # 展开路径中的 ~ 符号
+        expanded_directory = os.path.expanduser(directory)
+        if not os.path.isdir(expanded_directory):
             log.error(f"目录不存在或不可访问: {directory}")
             return []
         
-        log.info(f"开始扫描目录: {directory} (递归: {recursive})")
+        log.info(f"开始扫描目录: {expanded_directory} (递归: {recursive})")
         
         package_files = []
         try:
             if recursive:
-                for root, _, files in os.walk(directory):
+                for root, _, files in os.walk(expanded_directory):
                     for file in files:
                         if file.endswith('.pkg.tar.zst'):
                             full_path = os.path.join(root, file)
                             package_info = package_parser.parse_filename(full_path)
                             if package_info:
+                                # 添加文件名信息
+                                package_info['filename'] = file
+                                # 添加完整路径信息
+                                package_info['fullpath'] = full_path
                                 package_files.append(package_info)
             else:
-                for entry in os.scandir(directory):
+                for entry in os.scandir(expanded_directory):
                     if entry.is_file() and entry.name.endswith('.pkg.tar.zst'):
                         package_info = package_parser.parse_filename(entry.path)
                         if package_info:
+                            # 添加文件名信息
+                            package_info['filename'] = entry.name
+                            # 添加完整路径信息
+                            package_info['fullpath'] = entry.path
                             package_files.append(package_info)
             
-            log.success(f"在 {directory} 中找到 {len(package_files)} 个软件包")
+            log.success(f"在 {expanded_directory} 中找到 {len(package_files)} 个软件包")
             return package_files
         except PermissionError:
-            log.error(f"没有权限访问目录: {directory}")
+            log.error(f"没有权限访问目录: {expanded_directory}")
             return []
         except Exception as e:
-            log.error(f"扫描目录 {directory} 时出错: {str(e)}")
+            log.error(f"扫描目录 {expanded_directory} 时出错: {str(e)}")
             return []
 
 # 创建全局扫描器实例

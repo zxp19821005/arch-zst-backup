@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
@@ -16,6 +17,7 @@ from modules.directory_scanner import directory_scanner
 from modules.file_operations import file_operations
 from modules.package_parser import package_parser
 from modules.version_comparator import version_comparator
+from modules.list_display_manager import TableDisplayManager
 
 class CacheManagerPage(QWidget):
     """缓存软件管理页面"""
@@ -24,107 +26,63 @@ class CacheManagerPage(QWidget):
         super().__init__(parent)
         log.info("初始化缓存软件管理页面")
         self.packages = []
+        self.list_display_manager = None  # 初始化属性
         self.setup_ui()
         self.load_existing_packages()
     
     def setup_ui(self):
         """设置页面UI"""
-        main_layout = QVBoxLayout()        
+
+        main_layout = QVBoxLayout()
         # 操作按钮栏
         button_layout = QHBoxLayout()
-        
-        # 全选复选框
-        self.select_all_checkbox = QCheckBox("全选")
-        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
-        button_layout.addWidget(self.select_all_checkbox)
-        
+
         # 按钮布局 - 靠右对齐
         button_layout.addStretch()
-        
-        # 扫描按钮
-        self.scan_button = QPushButton("🔍 扫描")
+
+        # 刷新按钮
+        self.scan_button = QPushButton("刷新")
         self.scan_button.clicked.connect(self.scan_cache_dirs)
         button_layout.addWidget(self.scan_button)
         
         # 去重按钮
-        self.dedupe_button = QPushButton("♻️ 去重")
+        self.dedupe_button = QPushButton("去重")
         self.dedupe_button.clicked.connect(self.deduplicate_packages)
         button_layout.addWidget(self.dedupe_button)
-        
+
         # 删除按钮
-        self.delete_button = QPushButton("🗑️ 删除")
+        self.delete_button = QPushButton("删除")
         self.delete_button.clicked.connect(self.delete_selected)
         button_layout.addWidget(self.delete_button)
-        
-        # 缓存清理按钮
-        self.clean_button = QPushButton("🧹 缓存清理")
-        self.clean_button.clicked.connect(self.clean_system_cache)
-        button_layout.addWidget(self.clean_button)
-        
-        # 文件备份按钮
-        self.backup_button = QPushButton("📦 文件备份")
-        self.backup_button.clicked.connect(self.backup_files)
-        button_layout.addWidget(self.backup_button)
-        
         main_layout.addLayout(button_layout)
-        
-        # 第三部分：软件包表格
-        self.table = QTableWidget()
-        
-        # 从配置加载显示设置
-        config = config_manager.load_config()
-        display_settings = config.get('displaySettings', {})
-        
-        # 默认列设置
-        default_columns = ["选择", "名称", "Epoch", "版本", "发布号", "架构", "位置"]
-        
-        # 应用可见性设置
-        visible_columns = []
-        column_indices = {}  # 保存列名到索引的映射
-        for i, col in enumerate(default_columns[1:]):  # 跳过"选择"列
-            display_setting = display_settings.get(col, {})
-            if display_setting.get('visible', True):
-                visible_columns.append(col)
-                column_indices[col] = i + 1  # 记录可见列的索引
-        
-        # 设置表格列数
-        self.table.setColumnCount(len(visible_columns) + 1)  # +1 为"选择"列
 
-        # 隐藏不可见的列
-        for i, col in enumerate(default_columns[1:], start=1):  # 从1开始跳过"选择"列
-            if col not in visible_columns:
-                self.table.setColumnHidden(i, True)
+        # 创建表格
+        self.table_widget = QTableWidget()
+        self.table_widget.horizontalHeader().setStretchLastSection(True)
         
-        # 设置表头
-        self.table.setHorizontalHeaderLabels(["选择"] + visible_columns)
-        
-        # 设置列宽调整模式
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        
-        # 设置表头居中
-        header = self.table.horizontalHeader()
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        # 设置表格颜色
+        table_palette = self.table_widget.palette()
+        table_palette.setColor(self.table_widget.backgroundRole(), Qt.black)
+        table_palette.setColor(self.table_widget.foregroundRole(), Qt.white)
+        self.table_widget.setPalette(table_palette)
 
-        # 应用对齐方式设置
-        for col_name in visible_columns:
-            col_index = column_indices[col_name]
-            alignment = display_settings.get(col_name, {}).get('alignment', "center")
-            align_flag = Qt.AlignmentFlag.AlignCenter
-            if alignment == "left":
-                align_flag = Qt.AlignmentFlag.AlignLeft
+        # 使用预定义的列配置
+        from modules.list_display_manager import COLUMN_CONFIGS
+        column_config = COLUMN_CONFIGS["cache_manager"]
+
+        main_layout.addWidget(self.table_widget)
+        self.list_display_manager = TableDisplayManager(self.table_widget, column_config)
+        # 应用 displaySettings 中的列对齐方式
+        for column_name, settings in column_config.items():
+            column_index = list(column_config.keys()).index(column_name)
+            alignment = settings.get("alignment", "left")
+            if alignment == "center":
+                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
             elif alignment == "right":
-                align_flag = Qt.AlignmentFlag.AlignRight
-
-            # 设置列的对齐方式
-            self.table.horizontalHeaderItem(col_index).setTextAlignment(align_flag | Qt.AlignmentFlag.AlignVCenter)
-            
-            self.table.horizontalHeaderItem(col).setTextAlignment(align_flag | Qt.AlignmentFlag.AlignVCenter)
-        
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        main_layout.addWidget(self.table)
-        
+                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignRight)
+            else:
+                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
+        # 设置页面布局
         self.setLayout(main_layout)
         log.info("缓存软件管理页面UI设置完成")
     
@@ -137,11 +95,20 @@ class CacheManagerPage(QWidget):
             try:
                 with open(packages_file, 'r', encoding='utf-8') as f:
                     self.packages = json.load(f)
+                    if not isinstance(self.packages, list):
+                        raise ValueError("Invalid packages data format")
+                        
+                    if not self.packages:
+                        log.warning(f"软件包列表为空: {packages_file}")
+                        self.packages = []  # 确保是空列表
+                    else:
+                        log.info(f"从 {packages_file} 加载了 {len(self.packages)} 个软件包")
                     self.update_table()
-                    log.info(f"从 {packages_file} 加载了 {len(self.packages)} 个软件包")
             except Exception as e:
                 log.error(f"加载软件包列表失败: {str(e)}")
-                QMessageBox.critical(self, "错误", "加载软件包列表失败")
+                self.packages = []  # 确保是空列表
+                self.update_table()  # 使用空列表更新表格
+                QMessageBox.critical(self, "错误", f"加载软件包列表失败: {str(e)}")
     
     def scan_cache_dirs(self):
         """扫描缓存目录"""
@@ -159,7 +126,34 @@ class CacheManagerPage(QWidget):
                 parsed_info = package_parser.parse_filename(Path(pkg['filename']).name)
                 if parsed_info:
                     pkg.update(parsed_info)
-                    pkg['location'] = cache_dir
+                    # 获取软件包的实际路径，提取目录部分
+                    pkg_path = Path(pkg['fullpath'])
+                    dir_path = pkg_path.parent
+                    
+                    # 检查是否是 pacman 缓存目录
+                    expanded_cache_dir = os.path.expanduser(cache_dir)
+                    if str(dir_path) == expanded_cache_dir or str(dir_path).startswith(expanded_cache_dir + '/'):
+                        # 如果是 pacman 缓存目录，直接使用缓存目录作为位置
+                        location = expanded_cache_dir
+                    else:
+                        # 否则，使用文件所在目录作为位置
+                        location = str(dir_path)
+                    
+                    # 将用户主目录路径替换为 ~ 符号
+                    home_dir = os.path.expanduser('~')
+                    if location.startswith(home_dir):
+                        location = '~' + location[len(home_dir):]
+                    
+                    # 将特定的缓存目录路径替换为对应的别名
+                    paru_cache_path = os.path.expanduser('~/.cache/paru/clone')
+                    yay_cache_path = os.path.expanduser('~/.cache/yay')
+                    
+                    if location == paru_cache_path:
+                        location = 'paru_cache'
+                    elif location == yay_cache_path:
+                        location = 'yay_cache'
+                    
+                    pkg['location'] = location
                     self.packages.append(pkg)
         
         self.update_table()
@@ -178,43 +172,13 @@ class CacheManagerPage(QWidget):
     
     def update_table(self):
         """更新表格显示"""
-        self.table.setRowCount(len(self.packages))
-        
-        for row, pkg in enumerate(self.packages):
-            # 选择复选框
-            checkbox = QCheckBox()
-            checkbox.setChecked(False)
-            self.table.setCellWidget(row, 0, checkbox)
-            
-            # 其他信息
-            self.table.setItem(row, 1, QTableWidgetItem(pkg.get('name', '')))
-            # 只在 epoch 存在且不为 '0' 时显示
-            epoch = pkg.get('epoch', '0')
-            self.table.setItem(row, 2, QTableWidgetItem(epoch if epoch != '0' else ''))
-            self.table.setItem(row, 3, QTableWidgetItem(pkg.get('version', '')))
-            self.table.setItem(row, 4, QTableWidgetItem(pkg.get('pkgrel', '')))
-            self.table.setItem(row, 5, QTableWidgetItem(pkg.get('arch', '')))
-            self.table.setItem(row, 6, QTableWidgetItem(pkg.get('location', '')))
-        
-        log.info(f"更新表格显示，共 {len(self.packages)} 行")
+        self.list_display_manager.update_table(self.packages)
     
-    def toggle_select_all(self, state):
-        """全选/取消全选"""
-        is_checked = self.select_all_checkbox.isChecked()
-        for row in range(self.table.rowCount()):
-            checkbox = self.table.cellWidget(row, 0)
-            if checkbox:
-                checkbox.setChecked(is_checked)
-        log.info(f"{'全选' if is_checked else '取消全选'}所有软件包")
+    
     
     def get_selected_packages(self):
         """获取选中的软件包"""
-        selected = []
-        for row in range(self.table.rowCount()):
-            checkbox = self.table.cellWidget(row, 0)
-            if checkbox and checkbox.isChecked():
-                selected.append(self.packages[row])
-        return selected
+        return self.list_display_manager.get_selected_packages(self.packages)
     
     def deduplicate_packages(self):
         """去重软件包，保留最新版本"""
