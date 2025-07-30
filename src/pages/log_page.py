@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit, QHBoxLayout, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit, QPlainTextEdit, QHBoxLayout, 
                             QCheckBox, QComboBox, QPushButton, QSpacerItem, QSizePolicy, QLabel)
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QTextCursor, QTextCharFormat, QColor, QFont
 from modules.logger import log
 import os
 from datetime import datetime
@@ -31,13 +32,16 @@ class LogPage(QWidget):
         main_layout = QVBoxLayout()
 
         # 日志显示区域
-        self.log_display = QTextEdit()
+        self.log_display = QPlainTextEdit()
         self.log_display.setReadOnly(True)
         # 启用自动换行，移除横向滚动条
-        self.log_display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.log_display.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.log_display.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # 启用HTML格式支持，用于彩色日志
-        self.log_display.setHtml('<div style="font-family: monospace; white-space: pre-wrap;">等待加载日志...</div>')
+        # 设置等宽字体，更适合终端风格
+        font = QFont("Consolas, Monaco, monospace")
+        self.log_display.setFont(font)
+        # 初始文本
+        self.log_display.setPlainText("等待加载日志...")
         main_layout.addWidget(self.log_display)
         
         # 控制区域
@@ -108,27 +112,43 @@ class LogPage(QWidget):
                             # 让我们添加一些调试信息
                             log.info(f"读取到 {len(lines)} 行日志")
                         
-                        # 转换为彩色HTML日志
-                        log_content = self.convert_to_colorful_html(lines)
+                        # 直接使用原始文本，不做HTML转换
+                        log_content = "".join(lines)
                 except Exception as e:
                     log.error(f"读取日志文件 {log_path} 失败: {e}")
             
             # 添加时间戳
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             # 添加时间戳
-            header = f'<div style="color: #555; font-weight: bold;">=== 日志更新时间: {timestamp} ===</div>'
+            header = f"=== 日志更新时间: {timestamp} ==="
             
-            # 使用HTML格式更新日志
-            html_content = f'<div style="font-family: monospace; white-space: pre-wrap;">{header}<br/>{log_content}</div>'
+            # 使用纯文本格式更新日志
+            plain_content = f"{header}\n{log_content}"
             
-            self.update_log_html(html_content)
+            self.update_log(plain_content)
         except Exception as e:
             log.error(f"刷新日志失败: {e}")
             self.update_log(f"加载日志失败: {e}")
     
     def update_log(self, log_content):
         """更新日志内容"""
-        self.log_display.setPlainText(log_content)
+        # 清空当前内容
+        self.log_display.clear()
+        
+        # 创建光标对象
+        cursor = self.log_display.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        
+        # 按行处理日志内容
+        lines = log_content.split("\n")
+        for i, line in enumerate(lines):
+            # 为每行设置格式
+            self.format_log_line(cursor, line)
+            
+            # 如果不是最后一行，添加换行
+            if i < len(lines) - 1:
+                cursor.insertText("\n")
+        
         # 如果启用了自动滚动，滚动到底部
         if self.auto_scroll:
             scrollbar = self.log_display.verticalScrollBar()
@@ -147,6 +167,50 @@ class LogPage(QWidget):
     def clear_log(self):
         """清除日志显示"""
         self.log_display.clear()
+        
+    def format_log_line(self, cursor, line):
+        """为日志行设置格式和颜色"""
+        
+        # 日志级别颜色映射
+        color_map = {
+            "DEBUG": QColor(150, 150, 150),    # 灰色
+            "INFO": QColor(0, 174, 219),       # 蓝色
+            "SUCCESS": QColor(46, 204, 113),   # 绿色
+            "WARNING": QColor(243, 156, 18),   # 橙色
+            "ERROR": QColor(231, 76, 60)       # 红色
+        }
+        
+        # 检查是否包含日志级别标记
+        for level, color in color_map.items():
+            if f"[{level}]" in line:
+                # 分割日志行：日志级别部分和剩余部分
+                level_marker = f"[{level}]"
+                parts = line.split(level_marker, 1)
+                
+                # 插入第一部分（如果有）
+                if parts[0]:
+                    cursor.insertText(parts[0])
+                
+                # 设置日志级别的格式
+                format = QTextCharFormat()
+                format.setForeground(color)
+                format.setFontWeight(QFont.Bold)
+                cursor.setCharFormat(format)
+                
+                # 插入日志级别标记
+                cursor.insertText(level_marker)
+                
+                # 重置格式
+                cursor.setCharFormat(QTextCharFormat())
+                
+                # 插入剩余部分（如果有）
+                if len(parts) > 1 and parts[1]:
+                    cursor.insertText(parts[1])
+                
+                return
+        
+        # 如果没有日志级别标记，直接插入整行
+        cursor.insertText(line)
     
     def convert_to_colorful_html(self, lines):
         """将日志行转换为彩色HTML格式"""
