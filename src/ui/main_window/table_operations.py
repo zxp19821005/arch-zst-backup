@@ -11,7 +11,7 @@ class TableOperationsMixin:
     def setup_table(self, table_widget, columns):
         """设置表格"""
         table_widget.setColumnCount(len(columns) + 1)  # +1 为选择列
-        headers = ["选择"] + columns
+        headers = ["Select"] + columns
         table_widget.setHorizontalHeaderLabels(headers)
         
         # 设置表格属性
@@ -131,7 +131,7 @@ class TableOperationsMixin:
                 if checkbox:
                     checkbox.setChecked(is_checked)
             
-            text = "取消全选" if is_checked else "全选"
+            text = "Deselect All" if is_checked else "Select All"
             self.select_all_button.setText(text)
     
     def filter_packages(self, text):
@@ -153,16 +153,16 @@ class TableOperationsMixin:
                 if should_show:
                     visible_count += 1
             
-            self.update_status(f"显示 {visible_count} 项")
+            self.update_status(f"Showing {visible_count} items")
     
     def on_selection_changed(self):
         """选择变化处理"""
         if hasattr(self, 'current_table'):
             selected_count = len(self.get_selected_rows(self.current_table))
             if selected_count > 0:
-                self.update_status(f"已选择 {selected_count} 项")
+                self.update_status(f"Selected {selected_count} items")
             else:
-                self.update_status("就绪")
+                self.update_status("Ready")
     
     def on_checkbox_changed(self, row, state):
         """复选框状态变化处理"""
@@ -172,4 +172,4 @@ class TableOperationsMixin:
         """刷新数据"""
         # 子类需要实现具体的刷新逻辑
         self.logger.info("刷新数据")
-        self.update_status("正在刷新数据...")
+        self.update_status("Refreshing data...")

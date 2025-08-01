@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QWidget, QSplitter, QFrame
 )
 from PySide6.QtCore import Qt
+from ui.components.status_bar import StatusBar
 
 class UIInitMixin:
     """UI初始化相关的方法混入类"""
@@ -17,19 +18,19 @@ class UIInitMixin:
         parent_layout.addLayout(toolbar_layout)
         
         # 全选/取消全选按钮
-        self.select_all_button = QPushButton("全选")
+        self.select_all_button = QPushButton("Select All")
         self.select_all_button.setCheckable(True)
         self.select_all_button.clicked.connect(self.toggle_select_all)
         toolbar_layout.addWidget(self.select_all_button)
         
         # 刷新按钮
-        self.refresh_button = QPushButton("刷新")
+        self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.refresh_data)
         toolbar_layout.addWidget(self.refresh_button)
         
         # 搜索框
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("搜索软件包...")
+        self.search_edit.setPlaceholderText("Search packages...")
         self.search_edit.textChanged.connect(self.filter_packages)
         toolbar_layout.addWidget(self.search_edit)
         
@@ -40,15 +41,17 @@ class UIInitMixin:
     
     def setup_status_bar(self):
         """设置状态栏"""
-        status_bar = self.statusBar()
+        # 使用自定义的状态栏组件
+        status_bar = StatusBar(self)
+        self.setStatusBar(status_bar)
         
-        # 状态标签
-        self.status_label = QLabel("就绪")
-        status_bar.addWidget(self.status_label)
+        # 保存引用以便后续使用
+        self.status_bar = status_bar
+        self.status_label = status_bar.status_label
         
-        # 进度标签
-        self.progress_label = QLabel("")
-        status_bar.addPermanentWidget(self.progress_label)
+        self.progress_label = status_bar.progress_bar
+        self.count_label = status_bar.count_label
+        self.time_label = status_bar.time_label
         
         return status_bar
     

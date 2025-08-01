@@ -19,7 +19,7 @@ class StatusBar(QStatusBar):
     def setup_ui(self):
         """设置UI"""
         # 主状态标签
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel("")
         self.addWidget(self.status_label)
         
         # 进度条
@@ -49,7 +49,8 @@ class StatusBar(QStatusBar):
     
     def clear_temporary_message(self):
         """清除临时消息"""
-        self.status_label.setText("就绪")
+        # 不再自动设置为"就绪"，保留最后一条消息
+        pass
     
     def show_progress(self, value, maximum=100):
         """显示进度"""

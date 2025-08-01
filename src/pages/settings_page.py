@@ -9,8 +9,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from modules.logger import log
-from modules.config_manager import config_manager
+from src.modules.logger import log
+from src.modules.config_manager import config_manager
+from ui.components.button_style import ButtonStyle
 
 class SettingsPage(QWidget):
     """设置页面"""
@@ -209,9 +210,8 @@ class SettingsPage(QWidget):
         button_layout.setContentsMargins(10, 5, 10, 5)
 
         save_button = QPushButton("保存设置")
-        save_button.setIcon(QIcon.fromTheme("document-save"))
         save_button.clicked.connect(self.save_settings)
-        save_button.setStyleSheet("QPushButton { text-align: center; padding: 5px 15px; }")
+        ButtonStyle.apply_success_style(save_button)
 
         button_layout.addStretch(1)  # 添加左侧伸缩因子
         button_layout.addWidget(save_button)
@@ -392,5 +392,8 @@ class SettingsPage(QWidget):
         }
 
         config_manager.save_config(config)
-        QMessageBox.information(self, "保存成功", "设置已成功保存！")
+        msg_box = QMessageBox(QMessageBox.Information, "保存成功", "设置已成功保存！")
+        ok_btn = msg_box.addButton("确定", QMessageBox.AcceptRole)
+        ButtonStyle.apply_primary_style(ok_btn)
+        msg_box.exec()
         log.info("设置已保存")

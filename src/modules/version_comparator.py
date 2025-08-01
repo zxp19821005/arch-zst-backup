@@ -23,8 +23,8 @@ class VersionComparator:
             return 1 if pkg1['epoch'] > pkg2['epoch'] else -1
         
         # 比较主版本号
-        ver1 = pkg1['version'].split('.')
-        ver2 = pkg2['version'].split('.')
+        ver1 = pkg1['pkgver'].split('.')
+        ver2 = pkg2['pkgver'].split('.')
         
         for v1, v2 in zip(ver1, ver2):
             if v1 != v2:
@@ -39,8 +39,8 @@ class VersionComparator:
             return 1 if len(ver1) > len(ver2) else -1
         
         # 比较pkgrel
-        rel1 = pkg1['pkgrel'].split('.')
-        rel2 = pkg2['pkgrel'].split('.')
+        rel1 = pkg1['relver'].split('.')
+        rel2 = pkg2['relver'].split('.')
         
         for r1, r2 in zip(rel1, rel2):
             if r1 != r2:
@@ -48,7 +48,7 @@ class VersionComparator:
                     return 1 if int(r1) > int(r2) else -1
                 return 1 if r1 > r2 else -1
         
-        # 如果pkgrel长度不同
+        # 如果relver长度不同
         if len(rel1) != len(rel2):
             return 1 if len(rel1) > len(rel2) else -1
         

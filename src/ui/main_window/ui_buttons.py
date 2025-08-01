@@ -15,19 +15,19 @@ class UIButtonsMixin:
         parent_layout.addLayout(button_layout)
         
         # 删除按钮
-        self.delete_button = QPushButton("删除选中")
+        self.delete_button = QPushButton("Delete Selected")
         self.delete_button.clicked.connect(self.delete_selected)
         self.delete_button.setEnabled(False)
         button_layout.addWidget(self.delete_button)
         
         # 备份按钮
-        self.backup_button = QPushButton("备份选中")
+        self.backup_button = QPushButton("Backup Selected")
         self.backup_button.clicked.connect(self.backup_selected)
         self.backup_button.setEnabled(False)
         button_layout.addWidget(self.backup_button)
         
         # 还原按钮
-        self.restore_button = QPushButton("还原选中")
+        self.restore_button = QPushButton("Restore Selected")
         self.restore_button.clicked.connect(self.restore_selected)
         self.restore_button.setEnabled(False)
         button_layout.addWidget(self.restore_button)
@@ -57,14 +57,19 @@ class UIButtonsMixin:
         
         selected_rows = self.get_selected_rows(self.current_table)
         if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择要删除的项目")
+            msg_box = QMessageBox(QMessageBox.Warning, "Warning", "Please select items to delete first")
+            ok_btn = msg_box.addButton("OK", QMessageBox.AcceptRole)
+            ButtonStyle.apply_warning_style(ok_btn)
+            msg_box.exec()
             return
         
-        reply = QMessageBox.question(
-            self, "确认删除", 
-            f"确定要删除选中的 {len(selected_rows)} 个项目吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        msg_box = QMessageBox(QMessageBox.Question, "Confirm Delete", f"Are you sure you want to delete {len(selected_rows)} selected items?")
+        yes_btn = msg_box.addButton("Yes", QMessageBox.YesRole)
+        no_btn = msg_box.addButton("No", QMessageBox.NoRole)
+        ButtonStyle.apply_primary_style(yes_btn)
+        ButtonStyle.apply_secondary_style(no_btn)
+        msg_box.setDefaultButton(no_btn)
+        reply = msg_box.exec()
         
         if reply == QMessageBox.StandardButton.Yes:
             self.perform_delete_operation(selected_rows)
@@ -76,7 +81,10 @@ class UIButtonsMixin:
         
         selected_rows = self.get_selected_rows(self.current_table)
         if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择要备份的项目")
+            msg_box = QMessageBox(QMessageBox.Warning, "Warning", "Please select items to backup first")
+            ok_btn = msg_box.addButton("OK", QMessageBox.AcceptRole)
+            ButtonStyle.apply_warning_style(ok_btn)
+            msg_box.exec()
             return
         
         self.perform_backup_operation(selected_rows)
@@ -88,12 +96,12 @@ class UIButtonsMixin:
         
         selected_rows = self.get_selected_rows(self.current_table)
         if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择要还原的项目")
+            QMessageBox.warning(self, "Warning", "Please select items to restore first")
             return
         
         reply = QMessageBox.question(
-            self, "确认还原", 
-            f"确定要还原选中的 {len(selected_rows)} 个项目吗？",
+            self, "Confirm Restore", 
+            f"Are you sure you want to restore {len(selected_rows)} selected items?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         

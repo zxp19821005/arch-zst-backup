@@ -22,10 +22,6 @@ from pages.settings_page import SettingsPage
 from pages.log_page import LogPage
 from pages.backup_manager_page import BackupManagerPage
 from pages.cache_manager_page import CacheManagerPage
-import sys
-from pathlib import Path
-# 动态添加项目根目录到模块搜索路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from ui.components.status_bar import StatusBar
 
 from modules.logger import log
@@ -148,7 +144,7 @@ class ArchZstBackupApp(QMainWindow):
         menu_items = [
             ("备份软件管理", BackupManagerPage()),
             ("缓存软件管理", CacheManagerPage()),
-            ("日志显示", LogPage()),
+            ("日志", LogPage()),
             ("设置", SettingsPage())
         ]
 
@@ -183,17 +179,36 @@ class ArchZstBackupApp(QMainWindow):
         # 初始化状态栏
         self.status_bar = StatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.status_bar.show_message("应用程序已就绪")
 
-        # 默认选择首页
+        # 默认选择首页，但不触发信号
+        self.menu_list.blockSignals(True)
         self.menu_list.setCurrentRow(0)
-
+        self.menu_list.blockSignals(False)
+        
+        # 不在启动时自动刷新页面，等待用户手动操作
+        
         log.info("主窗口UI设置完成")
 
     def switch_page(self, index):
         """切换页面"""
         try:
+            # 获取当前页面索引
+            current_index = self.stacked_widget.currentIndex()
+            
+            # 设置新的页面索引
             self.stacked_widget.setCurrentIndex(index)
+            
+            # 处理页面切换逻辑
+            if index == 0:  # 备份管理页面
+                # 不自动刷新，等待用户手动操作
+                self.status_bar.show_permanent_message(
+                    "备份软件管理页面，请点击刷新按钮加载软件包列表"
+                )
+            elif index == 1:  # 缓存软件管理页面
+                # 不自动刷新，等待用户手动操作
+                self.status_bar.show_permanent_message(
+                    "缓存软件管理页面，请点击刷新按钮加载软件包列表"
+                )
         except Exception as e:
             log.error(f"切换页面失败: {str(e)}")
 

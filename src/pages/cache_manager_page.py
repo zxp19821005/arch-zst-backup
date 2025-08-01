@@ -1,103 +1,130 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import json
-import os
+"""
+优化后的缓存管理器页面
+
+该文件整合了UI、业务逻辑和服务层，实现了模块化的缓存管理功能。
+"""
+
 from pathlib import Path
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTableWidget, QTableWidgetItem, QCheckBox, QHeaderView,
-    QMessageBox
-)
-from PySide6.QtCore import Qt, QSize, QProcess
-from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QWidget
 from modules.logger import log
-from modules.config_manager import config_manager
-from modules.directory_scanner import directory_scanner
-from modules.file_operations import file_operations
-from modules.package_parser import package_parser
-from modules.version_comparator import version_comparator
-from modules.list_display_manager import TableDisplayManager
+from .cache_manager_ui import CacheManagerUI
+from src.business.backup_service import BackupService
+from src.business.package_service import PackageService
+from src.business.cache_service import CacheService
+from src.business.cache_manager_operations import CacheManagerOperations
 
 class CacheManagerPage(QWidget):
     """缓存软件管理页面"""
-    
+
+    # 常量定义
+    PACMAN_CACHE_PATH = '/var/cache/pacman/pkg'
+    PARU_CACHE_PATH = Path.home() / '.cache/paru/clone'
+    YAY_CACHE_PATH = Path.home() / '.cache/yay'
+
     def __init__(self, parent=None):
         super().__init__(parent)
         log.info("初始化缓存软件管理页面")
         self.packages = []
-        self.list_display_manager = None  # 初始化属性
-        self.setup_ui()
-        self.load_existing_packages()
-    
-    def setup_ui(self):
-        """设置页面UI"""
+        self.list_display_manager = None
+        self.process = None
 
-        main_layout = QVBoxLayout()
-        # 操作按钮栏
-        button_layout = QHBoxLayout()
+        # 初始化UI
+        self.ui = CacheManagerUI(self)
 
-        # 按钮布局 - 靠右对齐
-        button_layout.addStretch()
+        # 初始化服务层
+        self.backup_service = BackupService(self)
+        self.package_service = PackageService(self)
+        self.cache_service = CacheService(self)
 
-        # 刷新按钮
-        self.scan_button = QPushButton("刷新")
-        self.scan_button.clicked.connect(self.scan_cache_dirs)
-        button_layout.addWidget(self.scan_button)
-        
-        # 去重按钮
-        self.dedupe_button = QPushButton("去重")
-        self.dedupe_button.clicked.connect(self.deduplicate_packages)
-        button_layout.addWidget(self.dedupe_button)
+        # 连接信号和槽
+        self.connect_signals()
 
-        # 删除按钮
-        self.delete_button = QPushButton("删除")
-        self.delete_button.clicked.connect(self.delete_selected)
-        button_layout.addWidget(self.delete_button)
-        main_layout.addLayout(button_layout)
+    def connect_signals(self):
+        """连接UI信号到服务方法"""
+        self.ui.scan_button.clicked.connect(self.package_service.scan_cache_dirs)
+        self.ui.dedupe_button.clicked.connect(self.package_service.deduplicate_packages)
+        self.ui.delete_button.clicked.connect(self.package_service.delete_selected)
+        self.ui.update_button.clicked.connect(self.cache_service.check_for_updates)
+        self.ui.clean_cache_button.clicked.connect(self.cache_service.clean_cache)
+        self.ui.backup_newer_button.clicked.connect(self.backup_service.backup_newer_versions)
+        self.ui.backup_to_subdir_button.clicked.connect(self.backup_service.backup_to_subdirectory)
 
-        # 创建表格
-        self.table_widget = QTableWidget()
-        self.table_widget.horizontalHeader().setStretchLastSection(True)
-        
-        # 设置表格颜色
-        table_palette = self.table_widget.palette()
-        table_palette.setColor(self.table_widget.backgroundRole(), Qt.black)
-        table_palette.setColor(self.table_widget.foregroundRole(), Qt.white)
-        self.table_widget.setPalette(table_palette)
+    def on_update_finished(self):
+        """更新完成处理"""
+        self.process = None
 
-        # 使用预定义的列配置
-        from modules.list_display_manager import COLUMN_CONFIGS
-        column_config = COLUMN_CONFIGS["cache_manager"]
+        # 执行刷新操作，确保列表更新
+        log.info("更新检查完成，执行刷新操作")
+        if hasattr(self, 'scan_button'):
+            # 模拟点击扫描按钮
+            self.scan_button.click()
+        elif hasattr(self, 'scan_cache_dirs'):
+            # 直接调用扫描方法
+            self.scan_cache_dirs()
 
-        main_layout.addWidget(self.table_widget)
-        self.list_display_manager = TableDisplayManager(self.table_widget, column_config)
-        # 应用 displaySettings 中的列对齐方式
-        for column_name, settings in column_config.items():
-            column_index = list(column_config.keys()).index(column_name)
-            alignment = settings.get("alignment", "left")
-            if alignment == "center":
-                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
-            elif alignment == "right":
-                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignRight)
-            else:
-                self.table_widget.horizontalHeader().setDefaultAlignment(Qt.AlignLeft)
-        # 设置页面布局
-        self.setLayout(main_layout)
+    def on_clean_finished(self):
+        """清理完成处理"""
+        self.process = None
+
+        # 执行刷新操作，确保列表更新
+        log.info("缓存清理完成，执行刷新操作")
+        if hasattr(self, 'scan_button'):
+            # 模拟点击扫描按钮
+            self.scan_button.click()
+        elif hasattr(self, 'scan_cache_dirs'):
+            # 直接调用扫描方法
+            self.scan_cache_dirs()
+
+    def on_update_error(self, error):
+        """更新检查错误处理"""
+        log.error(f"更新检查进程错误: {self.process.errorString()}")
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(self, "错误", f"更新检查进程错误: {self.process.errorString()}")
+
+    def on_clean_error(self, error):
+        """缓存清理错误处理"""
+        log.error(f"缓存清理进程错误: {self.process.errorString()}")
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(self, "错误", f"缓存清理进程错误: {self.process.errorString()}")
+
+    def reset_data(self):
+        """重置数据状态"""
+        self.packages = []
+        self.list_display_manager = None
+        self.ui.setup_ui()
+
+    def handle_filter(self, keyword):
+        """处理过滤信号"""
+        log.info(f"过滤关键词: {keyword}")
+        # 调用表格管理器的过滤方法，300ms延迟
+        self.list_display_manager.filter_data(search_text=keyword)
         log.info("缓存软件管理页面UI设置完成")
-    
+
     def load_existing_packages(self):
         """加载现有的软件包列表"""
+        from modules.config_manager import config_manager
+        from pathlib import Path
+        import json
+        from PySide6.QtWidgets import QMessageBox
+        from ui.components.button_style import ButtonStyle
+
         config_dir = Path(config_manager.config_dir)
+        log.debug(f"配置目录路径: {config_dir}")
         packages_file = config_dir / "updated_packages.json"
-        
+        log.debug(f"尝试读取文件: {packages_file}")
+
         if packages_file.exists():
             try:
                 with open(packages_file, 'r', encoding='utf-8') as f:
                     self.packages = json.load(f)
+                    log.debug(f"读取到 {len(self.packages)} 条软件包数据")
                     if not isinstance(self.packages, list):
+                        log.error(f"无效的数据格式: {type(self.packages)}")
                         raise ValueError("Invalid packages data format")
-                        
+
                     if not self.packages:
                         log.warning(f"软件包列表为空: {packages_file}")
                         self.packages = []  # 确保是空列表
@@ -105,280 +132,123 @@ class CacheManagerPage(QWidget):
                         log.info(f"从 {packages_file} 加载了 {len(self.packages)} 个软件包")
                     self.update_table()
             except Exception as e:
-                log.error(f"加载软件包列表失败: {str(e)}")
+                log.error(f"加载软件包列表失败: {str(e)}", exc_info=True)
+                log.debug(f"完整异常堆栈:", stack_info=True)
                 self.packages = []  # 确保是空列表
                 self.update_table()  # 使用空列表更新表格
-                QMessageBox.critical(self, "错误", f"加载软件包列表失败: {str(e)}")
-    
-    def scan_cache_dirs(self):
-        """扫描缓存目录"""
-        config = config_manager.load_config()
-        if not config.get('cacheDirs', []):
-            QMessageBox.warning(self, "警告", "请先在设置中配置缓存目录")
-            log.warning("未配置缓存目录，无法扫描")
-            return
-        
-        self.packages = []
-        for cache_dir in config['cacheDirs']:
-            scanned_packages = directory_scanner.scan_directory(cache_dir, recursive=True)
-            # 解析包信息
-            for pkg in scanned_packages:
-                parsed_info = package_parser.parse_filename(Path(pkg['filename']).name)
-                if parsed_info:
-                    pkg.update(parsed_info)
-                    # 获取软件包的实际路径，提取目录部分
-                    pkg_path = Path(pkg['fullpath'])
-                    dir_path = pkg_path.parent
-                    
-                    # 检查是否是 pacman 缓存目录
-                    expanded_cache_dir = os.path.expanduser(cache_dir)
-                    if str(dir_path) == expanded_cache_dir or str(dir_path).startswith(expanded_cache_dir + '/'):
-                        # 如果是 pacman 缓存目录，直接使用缓存目录作为位置
-                        location = expanded_cache_dir
-                    else:
-                        # 否则，使用文件所在目录作为位置
-                        location = str(dir_path)
-                    
-                    # 将用户主目录路径替换为 ~ 符号
-                    home_dir = os.path.expanduser('~')
-                    if location.startswith(home_dir):
-                        location = '~' + location[len(home_dir):]
-                    
-                    # 将特定的缓存目录路径替换为对应的别名
-                    paru_cache_path = os.path.expanduser('~/.cache/paru/clone')
-                    yay_cache_path = os.path.expanduser('~/.cache/yay')
-                    
-                    if location == paru_cache_path:
-                        location = 'paru_cache'
-                    elif location == yay_cache_path:
-                        location = 'yay_cache'
-                    
-                    pkg['location'] = location
-                    self.packages.append(pkg)
-        
-        self.update_table()
-        
-        # 保存扫描结果
-        config_dir = Path(config_manager.config_dir)
-        packages_file = config_dir / "updated_packages.json"
-        
-        try:
-            with open(packages_file, 'w', encoding='utf-8') as f:
-                json.dump(self.packages, f, indent=4, ensure_ascii=False)
-            log.success(f"保存了 {len(self.packages)} 个软件包到 {packages_file}")
-        except Exception as e:
-            log.error(f"保存软件包列表失败: {str(e)}")
-            QMessageBox.critical(self, "错误", "保存软件包列表失败")
-    
+                msg_box = QMessageBox(QMessageBox.Critical, "错误", f"加载软件包列表失败: {str(e)}")
+                ok_btn = msg_box.addButton("确定", QMessageBox.AcceptRole)
+                ButtonStyle.apply_danger_style(ok_btn)
+                msg_box.exec()
+
     def update_table(self):
         """更新表格显示"""
-        self.list_display_manager.update_table(self.packages)
-    
-    
-    
+        if self.list_display_manager is None:
+            self._init_list_display()
+
+        if self.list_display_manager is not None:
+            self.list_display_manager.update_table(self.packages)
+        else:
+            raise RuntimeError("列表显示管理器初始化失败")
+
+    def _init_list_display(self):
+        """初始化列表显示管理器"""
+        if self.ui.table_widget is None:
+            raise RuntimeError("表格组件未初始化")
+
+        # 使用预定义的列配置
+        from ui.components.list_display_manager import COLUMN_CONFIGS, ListDisplayManager
+        column_config = COLUMN_CONFIGS["cache_manager"]
+
+        self.list_display_manager = ListDisplayManager(self.ui.table_widget, column_config)
+
     def get_selected_packages(self):
         """获取选中的软件包"""
         return self.list_display_manager.get_selected_packages(self.packages)
-    
-    def deduplicate_packages(self):
-        """去重软件包，保留最新版本"""
-        if not self.packages:
-            QMessageBox.warning(self, "警告", "请先扫描缓存目录")
-            return
+
+    def update_status_bar(self):
+        """更新状态栏信息"""
+        duplicate_count = self.count_duplicate_packages()
+        backupable_count = self.count_backupable_packages()
+        if self.parent() and hasattr(self.parent(), 'parent') and self.parent().parent():
+            main_window = self.parent().parent()
+            if hasattr(main_window, 'status_bar') and len(self.packages) > 0:
+                main_window.status_bar.show_permanent_message(
+                    f"共 {len(self.packages)} 个软件包，其中有 {duplicate_count} 个重复软件包，有 {backupable_count} 个软件包可以备份"
+                )
+
+    def on_item_copied(self, content):
+        """处理复制事件"""
+        log.info(f"已复制内容到剪贴板: {content}")
+
+    def on_item_renamed(self, old_path, new_path):
+        """处理重命名事件"""
+        log.info(f"文件已重命名: {old_path} -> {new_path}")
+        # 不自动刷新，等待用户手动操作
+        log.info("文件已重命名，请手动刷新以更新列表")
+
+    def on_item_deleted(self, path):
+        """处理删除事件"""
+        log.info(f"文件已删除: {path}")
         
-        # 按名称分组
-        packages_by_name = {}
-        for pkg in self.packages:
-            name = pkg['name']
-            if name not in packages_by_name:
-                packages_by_name[name] = []
-            packages_by_name[name].append(pkg)
-        
-        # 找出需要删除的旧版本
-        to_delete = []
-        for name, pkgs in packages_by_name.items():
-            if len(pkgs) > 1:
-                try:
-                    # 使用version_comparator找出最新版本
-                    latest = version_comparator.find_latest(pkgs)
-                    # 删除非最新版本
-                    for pkg in pkgs:
-                        if pkg != latest:
-                            to_delete.append(pkg)
-                    log.debug(f"软件包 {name} 保留版本: {latest['version']}-{latest['pkgrel']}")
-                except Exception as e:
-                    log.error(f"比较软件包 {name} 版本时出错: {str(e)}")
-                    continue
-        
-        if not to_delete:
-            QMessageBox.information(self, "信息", "没有发现重复的软件包")
-            return
-        
-        # 显示确认对话框
-        confirm = QMessageBox.question(
-            self, "确认去重", 
-            f"发现 {len(to_delete)} 个旧版本软件包，是否删除？\n"
-            "注意: 此操作将永久删除文件且不可恢复！",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        
-        if confirm == QMessageBox.StandardButton.Yes:
-            success_count = 0
-            failed_files = []
-            
-            for pkg in to_delete:
-                file_path = Path(pkg['location']) / pkg['filename']
-                try:
-                    if file_operations.delete_file(str(file_path)):
-                        success_count += 1
-                        log.info(f"已删除旧版本: {file_path}")
-                    else:
-                        failed_files.append(str(file_path))
-                except Exception as e:
-                    log.error(f"删除文件 {file_path} 失败: {str(e)}")
-                    failed_files.append(str(file_path))
-            
-            # 重新扫描
+        # 执行刷新操作，确保列表更新
+        log.info("文件已删除，执行刷新操作")
+        if hasattr(self, 'scan_button'):
+            # 模拟点击扫描按钮
+            self.scan_button.click()
+        elif hasattr(self, 'scan_cache_dirs'):
+            # 直接调用扫描方法
             self.scan_cache_dirs()
             
-            # 显示操作结果
-            result_msg = f"成功删除了 {success_count}/{len(to_delete)} 个旧版本软件包"
-            if failed_files:
-                result_msg += f"\n\n删除失败的文件:\n" + "\n".join(failed_files[:5]) 
-                if len(failed_files) > 5:
-                    result_msg += f"\n...等共 {len(failed_files)} 个文件"
-            
-            QMessageBox.information(self, "完成", result_msg)
-            log.info(f"去重操作结果: {result_msg}")
-    
-    def delete_selected(self):
-        """删除选中的软件包"""
+    def handle_context_menu_delete(self, path):
+        """处理右键菜单删除操作"""
+        log.info(f"通过右键菜单删除文件: {path}")
+        
+        # 确认删除
+        from PySide6.QtWidgets import QMessageBox
+        from ui.components.button_style import ButtonStyle
+        
+        # 获取所有选中的文件路径
         selected = self.get_selected_packages()
-        if not selected:
-            QMessageBox.warning(self, "警告", "请先选择要删除的软件包")
-            return
         
-        confirm = QMessageBox.question(
-            self, "确认删除", 
-            f"确定要删除选中的 {len(selected)} 个软件包吗？此操作不可撤销！",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        # 构建确认对话框文本
+        if len(selected) == 1:
+            confirm_text = f"确定要删除以下文件吗？\n\n{path}"
+        else:
+            confirm_text = f"以下是你需要删除的 {len(selected)} 个软件：\n\n"
+            for i, pkg in enumerate(selected, 1):
+                # 构建完整路径
+                location = pkg.get("location", "")
+                filename = pkg.get("filename", "")
+                full_path = f"{location}/{filename}" if location else filename
+                confirm_text += f"{i}. {full_path}\n"
+            confirm_text += "\n确认删除吗？"
+            
+        msg_box = QMessageBox(QMessageBox.Question, "确认删除", confirm_text)
+        yes_btn = msg_box.addButton("确认", QMessageBox.YesRole)
+        no_btn = msg_box.addButton("取消", QMessageBox.NoRole)
+        ButtonStyle.apply_primary_style(yes_btn)
+        ButtonStyle.apply_secondary_style(no_btn)
+        msg_box.setDefaultButton(no_btn)
+        reply = msg_box.exec()
         
-        if confirm == QMessageBox.StandardButton.Yes:
-            success_count = 0
-            failed_files = []
-            
-            for pkg in selected:
-                file_path = Path(pkg['location']) / pkg['filename']
-                try:
-                    if file_operations.delete_file(str(file_path)):
-                        success_count += 1
-                        log.info(f"已删除文件: {file_path}")
-                    else:
-                        failed_files.append(str(file_path))
-                        log.warning(f"删除文件失败: {file_path}")
-                except Exception as e:
-                    log.error(f"删除文件 {file_path} 时出错: {str(e)}")
-                    failed_files.append(str(file_path))
-            
-            # 重新扫描
-            self.scan_cache_dirs()
-            
-            # 显示操作结果
-            result_msg = f"成功删除了 {success_count}/{len(selected)} 个软件包"
-            if failed_files:
-                result_msg += f"\n\n删除失败的文件:\n" + "\n".join(failed_files[:5]) 
-                if len(failed_files) > 5:
-                    result_msg += f"\n...等共 {len(failed_files)} 个文件"
-            
-            QMessageBox.information(self, "完成", result_msg)
-            log.info(f"删除操作结果: {result_msg}")
+        if reply == QMessageBox.Yes:
+            # 调用缓存管理器操作的删除方法
+            # 使用所有选中的软件包
+            if selected:
+                # 使用缓存管理器操作的删除方法
+                self.package_service.delete_selected_packages(selected)
 
-    def backup_files(self):
-        """备份文件"""
-        config = config_manager.load_config()
-        if not config.get('backupDirs', []):
-            QMessageBox.warning(self, "警告", "请先在设置中配置备份目录")
-            log.warning("未配置备份目录，无法备份")
-            return
+    def count_duplicate_packages(self):
+        """计算重复软件包数量"""
+        from utils.common_utils import count_duplicate_packages
+        return count_duplicate_packages(self.packages)
 
-        confirm = QMessageBox.question(
-            self, "确认备份",
-            "确定要备份选中的文件吗？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if confirm != QMessageBox.StandardButton.Yes:
-            return
-
-        selected = self.get_selected_packages()
-        if not selected:
-            QMessageBox.warning(self, "警告", "请先选择要备份的文件")
-            return
-
-        success_count = 0
-        failed_files = []
-
-        for pkg in selected:
-            src_path = Path(pkg['location']) / pkg['filename']
-            for backup_dir in config['backupDirs']:
-                dst_path = Path(backup_dir) / pkg['filename']
-                try:
-                    if file_operations.copy_file(str(src_path), str(dst_path)):
-                        success_count += 1
-                        log.info(f"已备份文件: {src_path} -> {dst_path}")
-                    else:
-                        failed_files.append(str(src_path))
-                except Exception as e:
-                    log.error(f"备份文件 {src_path} 失败: {str(e)}")
-                    failed_files.append(str(src_path))
-
-        # 显示操作结果
-        result_msg = f"成功备份了 {success_count}/{len(selected)} 个文件"
-        if failed_files:
-            result_msg += f"\n\n备份失败的文件:\n" + "\n".join(failed_files[:5])
-            if len(failed_files) > 5:
-                result_msg += f"\n...等共 {len(failed_files)} 个文件"
-
-        QMessageBox.information(self, "完成", result_msg)
-        log.info(f"备份操作结果: {result_msg}")
-
-    def clean_system_cache(self):
-        """清理系统缓存"""
-        confirm = QMessageBox.question(
-            self, "确认清理",
-            "确定要清理系统缓存吗？此操作将删除所有未安装软件包的缓存文件",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+    def count_backupable_packages(self):
+        """计算可备份软件包数量"""
+        from utils.common_utils import count_backupable_packages
+        return count_backupable_packages(self.packages)
         
-        if confirm != QMessageBox.StandardButton.Yes:
-            return
-            
-        process = QProcess()
-        # 使用bash管道自动输入4次y确认
-        process.setProgram("bash")
-        process.setArguments(["-c", "printf 'y\\n\\ny\\n\\n' | pkexec paru -Scc"])
-        
-        def handle_output():
-            output = process.readAllStandardOutput().data().decode()
-            log.info(f"清理输出: {output}")
-            
-        def handle_error():
-            error = process.readAllStandardError().data().decode()
-            # 过滤掉交互提示文本
-            if not error.strip().startswith("::"):
-                log.error(f"清理错误: {error}")
-            
-        def handle_finished(exit_code, exit_status):
-            if exit_code == 0:
-                QMessageBox.information(self, "完成", "系统缓存清理成功")
-                log.success("系统缓存清理成功")
-            else:
-                QMessageBox.warning(self, "警告", f"缓存清理失败 (退出码: {exit_code})")
-                log.warning(f"缓存清理失败 (退出码: {exit_code})")
-        
-        process.readyReadStandardOutput.connect(handle_output)
-        process.readyReadStandardError.connect(handle_error)
-        process.finished.connect(handle_finished)
-        
-        process.start()
+    def scan_cache_dirs(self):
+        """扫描缓存目录，委托给package_service处理"""
+        return self.package_service.scan_cache_dirs()

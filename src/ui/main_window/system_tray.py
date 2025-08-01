@@ -11,7 +11,7 @@ class SystemTrayMixin:
     def init_system_tray(self):
         """初始化系统托盘"""
         if not QSystemTrayIcon.isSystemTrayAvailable():
-            self.logger.warning("系统不支持系统托盘")
+            self.logger.warning("System does not support system tray")
             return
         
         # 创建托盘图标
@@ -33,7 +33,7 @@ class SystemTrayMixin:
         if show_tray:
             self.tray_icon.show()
         
-        self.logger.info("系统托盘初始化完成")
+        self.logger.info("System tray initialization completed")
     
     def get_tray_icon(self):
         """获取托盘图标"""
@@ -53,33 +53,33 @@ class SystemTrayMixin:
         tray_menu = QMenu()
         
         # 显示/隐藏主窗口
-        show_action = QAction("显示主窗口", self)
+        show_action = QAction("Show Main Window", self)
         show_action.triggered.connect(self.show_main_window)
         tray_menu.addAction(show_action)
         
-        hide_action = QAction("隐藏主窗口", self)
+        hide_action = QAction("Hide Main Window", self)
         hide_action.triggered.connect(self.hide_main_window)
         tray_menu.addAction(hide_action)
         
         tray_menu.addSeparator()
         
         # 快速操作
-        backup_action = QAction("快速备份", self)
+        backup_action = QAction("Quick Backup", self)
         backup_action.triggered.connect(self.quick_backup)
         tray_menu.addAction(backup_action)
         
-        restore_action = QAction("快速还原", self)
+        restore_action = QAction("Quick Restore", self)
         restore_action.triggered.connect(self.quick_restore)
         tray_menu.addAction(restore_action)
         
         tray_menu.addSeparator()
         
         # 设置和退出
-        settings_action = QAction("设置", self)
+        settings_action = QAction("Settings", self)
         settings_action.triggered.connect(self.show_settings)
         tray_menu.addAction(settings_action)
         
-        quit_action = QAction("退出", self)
+        quit_action = QAction("Quit", self)
         quit_action.triggered.connect(self.quit_application)
         tray_menu.addAction(quit_action)
         
@@ -113,13 +113,13 @@ class SystemTrayMixin:
     def quick_backup(self):
         """快速备份"""
         self.logger.info("执行快速备份")
-        self.show_tray_message("快速备份", "备份操作已开始...")
+        self.show_tray_message("Quick Backup", "Backup operation has started...")
         # 具体备份逻辑由子类实现
     
     def quick_restore(self):
         """快速还原"""
         self.logger.info("执行快速还原")
-        self.show_tray_message("快速还原", "还原操作已开始...")
+        self.show_tray_message("Quick Restore", "Restore operation has started...")
         # 具体还原逻辑由子类实现
     
     def show_settings(self):
@@ -128,13 +128,13 @@ class SystemTrayMixin:
         if hasattr(self, 'tabs'):
             # 切换到设置标签页
             for i in range(self.tabs.count()):
-                if self.tabs.tabText(i) == "设置":
+                if self.tabs.tabText(i) == "Settings":
                     self.tabs.setCurrentIndex(i)
                     break
     
     def quit_application(self):
         """退出应用"""
-        self.logger.info("用户从托盘退出应用")
+        self.logger.info("User exited application from tray")
         self.close()
     
     def show_tray_message(self, title, message, icon=QSystemTrayIcon.MessageIcon.Information, timeout=3000):
@@ -153,7 +153,7 @@ class SystemTrayMixin:
             self.hide()
             self.show_tray_message(
                 "Arch Zst Backup", 
-                "应用程序已最小化到系统托盘",
+                "Application has been minimized to system tray",
                 QSystemTrayIcon.MessageIcon.Information,
                 2000
             )

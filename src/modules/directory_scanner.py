@@ -39,6 +39,9 @@ class DirectoryScanner:
                                 package_info['filename'] = file
                                 # 添加完整路径信息
                                 package_info['fullpath'] = full_path
+                                # 添加位置信息（只包含子目录名称）
+                                relative_path = os.path.relpath(root, expanded_directory)
+                                package_info['location'] = relative_path if relative_path != '.' else ''
                                 package_files.append(package_info)
             else:
                 for entry in os.scandir(expanded_directory):
@@ -49,6 +52,8 @@ class DirectoryScanner:
                             package_info['filename'] = entry.name
                             # 添加完整路径信息
                             package_info['fullpath'] = entry.path
+                            # 添加位置信息（非递归模式下为空）
+                            package_info['location'] = ''
                             package_files.append(package_info)
             
             log.success(f"在 {expanded_directory} 中找到 {len(package_files)} 个软件包")
