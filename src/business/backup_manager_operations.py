@@ -214,3 +214,15 @@ class BackupManagerOperations:
             message = "没有找到软件包，请检查备份目录配置"
 
         self.ui_handler.update_status_bar_with_message(message, message)
+
+    def show_confirmation(self, message: str, packages=None) -> bool:
+        """显示确认对话框，返回用户选择结果
+
+        Args:
+            message (str): 确认消息
+            packages (List, optional): 要删除的软件包列表
+
+        Returns:
+            bool: 用户是否确认
+        """
+        return self.ui_handler.show_confirmation(message, packages)
