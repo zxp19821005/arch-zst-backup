@@ -11,10 +11,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from src.modules.logger import log
 from src.modules.config_manager import config_manager
+from src.utils.terminal_detector import detect_installed_terminals
 from ui.components.button_style import ButtonStyle
 
 class SettingsPage(QWidget):
     """设置页面"""
+    
+    # 终端模拟器参数映射表现在从配置文件中加载
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -204,6 +207,36 @@ class SettingsPage(QWidget):
         self.display_columns_group.setContentsMargins(5, 5, 5, 5)
         main_layout.addWidget(self.display_columns_group)
 
+        # 终端设置
+        terminal_group = QGroupBox("终端设置")
+        terminal_layout = QVBoxLayout(terminal_group)
+        terminal_layout.setContentsMargins(5, 5, 5, 5)
+        terminal_layout.setSpacing(5)
+
+        # 终端模拟器选择
+        terminal_select_layout = QHBoxLayout()
+        terminal_select_layout.setSpacing(10)
+        terminal_label = QLabel("终端模拟器:")
+        self.terminal_combo = QComboBox()
+        
+        # 检测系统中已安装的终端模拟器
+        installed_terminals = detect_installed_terminals()
+        if installed_terminals:
+            for terminal in installed_terminals:
+                self.terminal_combo.addItem(terminal)
+        else:
+            # 如果没有检测到终端模拟器，添加一些常见的选项
+            self.terminal_combo.addItem("xterm")
+            self.terminal_combo.addItem("gnome-terminal")
+            self.terminal_combo.addItem("konsole")
+            self.terminal_combo.addItem("xfce4-terminal")
+        
+        terminal_select_layout.addWidget(terminal_label)
+        terminal_select_layout.addWidget(self.terminal_combo, 1)
+        terminal_layout.addLayout(terminal_select_layout)
+        
+        main_layout.addWidget(terminal_group)
+
         # 保存按钮
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
@@ -250,6 +283,16 @@ class SettingsPage(QWidget):
         # 加载日志保存天数设置，默认为30天
         log_retention = config.get('logRetentionDays', 30)
         self.log_retention_edit.setText(str(log_retention))
+        
+        # 加载终端设置，默认为xterm
+        terminal = config.get('terminal', 'xterm')
+        index = self.terminal_combo.findText(terminal)
+        if index >= 0:
+            self.terminal_combo.setCurrentIndex(index)
+        else:
+            # 如果配置中的终端不在列表中，添加它
+            self.terminal_combo.addItem(terminal)
+            self.terminal_combo.setCurrentIndex(self.terminal_combo.count() - 1)
 
         # 加载表格显示设置
         display_settings = config.get('displaySettings', {})
@@ -385,6 +428,7 @@ class SettingsPage(QWidget):
             'cacheDirs': cache_dirs,
             'closeBehavior': close_behavior,
             'logRetentionDays': log_retention,
+            'terminal': self.terminal_combo.currentText(),
             'displaySettings': {
                 'alignment': {k: v['alignment'] for k, v in display_settings.items()},
                 'visibility': {k: v['visible'] for k, v in display_settings.items()}

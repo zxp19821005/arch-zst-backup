@@ -17,10 +17,11 @@ from modules.directory_scanner import directory_scanner
 from modules.version_comparator import version_comparator
 from utils.common_utils import count_duplicate_packages
 from utils.decorators import handle_errors
-from .package_deduplicator import PackageDeduplicator
-from .package_deleter import PackageDeleter
-from .ui_handler import UIHandler
-from .scan_result_manager import ScanResultManager
+from PySide6.QtCore import QProcess
+from src.business.package_deduplicator import PackageDeduplicator
+from src.business.package_deleter import PackageDeleter
+from src.business.ui_handler import UIHandler
+from src.business.scan_result_manager import ScanResultManager
 
 
 class BackupManagerOperations:
@@ -226,3 +227,54 @@ class BackupManagerOperations:
             bool: 用户是否确认
         """
         return self.ui_handler.show_confirmation(message, packages)
+
+    @handle_errors
+    def install_selected(self) -> None:
+        """安装选中的软件包
+
+        该方法会获取用户在界面中选中的软件包，
+        显示确认对话框，并在用户确认后执行安装操作。
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: 当没有选中的软件包时
+        """
+        import subprocess
+        from PySide6.QtWidgets import QProgressDialog, QApplication
+        from PySide6.QtCore import Qt
+        
+        selected = self.backup_manager.get_selected_packages()
+        if not selected:
+            self.ui_handler.show_warning("请先选择要安装的软件包")
+            return
+
+        # 提取软件包路径
+        package_paths = [pkg["fullpath"] if isinstance(pkg, dict) else pkg for pkg in selected]
+
+        try:
+            # 构建安装命令
+            cmd = ["paru", "-U"] + package_paths
+            cmd_str = ' '.join(cmd)
+            log.info(f"执行安装命令: {cmd_str}")
+
+            # 使用终端执行命令，以便用户可以输入密码
+            try:
+                # 使用终端执行器执行命令
+                from utils.terminal_executor import TerminalExecutor
+                terminal_executor = TerminalExecutor()
+                terminal_executor.process.finished.connect(lambda: self.backup_manager.on_install_finished())
+                terminal_executor.process.errorOccurred.connect(self.backup_manager.on_install_error)
+                # 保存 process 对象到 backup_manager
+                self.backup_manager.process = terminal_executor.process
+                terminal_executor.execute_command(cmd_str)
+            except Exception as e:
+                log.error(f"打开终端失败: {str(e)}")
+                self.ui_handler.show_error(f"无法打开终端: {str(e)}")
+            log.info(f"已在终端中启动安装命令: {cmd_str}")
+                
+        except Exception as e:
+            error_msg = f"安装过程中发生错误: {str(e)}"
+            self.ui_handler.show_error(error_msg)
+            log.error(error_msg)

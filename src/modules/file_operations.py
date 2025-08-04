@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
-from .logger import log
+from src.modules.logger import log
 from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox
 
 class FileOperations:
@@ -207,20 +207,30 @@ class FileOperations:
         try:
             # 使用pkexec执行rm命令删除文件
             log.info(f"尝试使用root权限删除文件: {file_path}")
-            result = subprocess.run(
-                ["pkexec", "rm", "-f", file_path],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            # 使用终端执行器执行命令
+            from src.utils.terminal_executor import TerminalExecutor
+            terminal_executor = TerminalExecutor()
             
-            if result.returncode == 0:
+            # 定义回调函数
+            def on_finished():
                 log.success(f"使用root权限删除文件成功: {file_path}")
-                return True
-            else:
+                
+            def on_error(error):
+                from PySide6.QtCore import QProcess
+                error_code, error_desc = terminal_executor.get_process_error()
                 log.error(f"使用root权限删除文件失败: {file_path}")
-                log.error(f"错误信息: {result.stderr}")
+                log.error(f"错误信息: {error_desc}")
+            
+            # 执行命令
+            cmd = f"pkexec rm -f '{file_path}'"
+            success = terminal_executor.execute_command(cmd, on_finished, on_error)
+            
+            if not success:
+                log.error("无法启动终端进程")
                 return False
+            
+            # 命令已通过回调函数处理结果
+            return True
                 
         except Exception as e:
             log.error(f"使用root权限删除文件时出错: {str(e)}")

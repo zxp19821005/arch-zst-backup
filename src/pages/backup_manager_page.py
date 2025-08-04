@@ -10,7 +10,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import QWidget
 from modules.logger import log
-from .backup_manager_ui import BackupManagerUI
+from src.pages.backup_manager_ui import BackupManagerUI
 from src.business.backup_manager_operations import BackupManagerOperations
 from ui.components.list_display_manager import ListDisplayManager
 
@@ -23,6 +23,7 @@ class BackupManagerPage(QWidget):
         log.info("初始化备份软件管理页面")
         self.packages = []
         self.list_display_manager = None
+        self.process = None
 
         # 初始化UI
         self.ui = BackupManagerUI(self)
@@ -38,6 +39,7 @@ class BackupManagerPage(QWidget):
         self.ui.scan_button.clicked.connect(self.operations.scan_backup_dir)
         self.ui.dedupe_button.clicked.connect(self.operations.deduplicate_packages)
         self.ui.delete_button.clicked.connect(self.operations.delete_selected)
+        self.ui.install_button.clicked.connect(self.operations.install_selected)
         self.ui.filter_box.filter_signal.connect(self.handle_filter)
         # QTableWidget没有这些信号，所以不需要连接
 
@@ -120,4 +122,15 @@ class BackupManagerPage(QWidget):
         """计算重复软件包数量"""
         from utils.common_utils import count_duplicate_packages
         return count_duplicate_packages(self.packages)
+
+    def on_install_finished(self):
+        """安装完成处理"""
+        self.process = None
+        log.info("软件包安装完成")
+
+    def on_install_error(self, error):
+        """安装错误处理"""
+        log.error(f"安装进程错误: {self.process.errorString()}")
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(self, "错误", f"安装进程错误: {self.process.errorString()}")
 

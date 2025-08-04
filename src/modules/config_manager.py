@@ -5,6 +5,7 @@ from pathlib import Path
 # 默认配置常量
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_BACKUP_DIR = "/path/to/backup"
+DEFAULT_TERMINAL = "xterm"
 DEFAULT_DISPLAY_SETTINGS = {
     'epoch': {'alignment': 'center'},
     'pkgname': {'alignment': 'center'},
@@ -12,6 +13,16 @@ DEFAULT_DISPLAY_SETTINGS = {
     'relver': {'alignment': 'center'},
     'arch': {'alignment': 'center'},
     'location': {'alignment': 'left'}
+}
+
+# 默认终端模拟器参数映射表
+DEFAULT_TERMINAL_ARGS_MAP = {
+    "xterm": ["-e"],
+    "gnome-terminal": ["--"],
+    "konsole": ["-e"],
+    "terminator": ["-x"],
+    "xfce4-terminal": ["-x"],
+    "lxterminal": ["-e"]
 }
 
 # 有效的日志级别
@@ -47,7 +58,9 @@ class ConfigManager:
             default_config = {
                 'logLevel': DEFAULT_LOG_LEVEL,
                 'backupDir': DEFAULT_BACKUP_DIR,
-                'displaySettings': DEFAULT_DISPLAY_SETTINGS
+                'terminal': DEFAULT_TERMINAL,
+                'displaySettings': DEFAULT_DISPLAY_SETTINGS,
+                'terminalArgsMap': DEFAULT_TERMINAL_ARGS_MAP.copy()
             }
             with open(config_path, 'w') as f:
                 json.dump(default_config, f, indent=2)
@@ -56,42 +69,52 @@ class ConfigManager:
         try:
             with open(config_path) as f:
                 config = json.load(f)
-                
+
                 # 确保必要配置项存在，不存在则使用默认值
                 if 'logLevel' not in config:
                     config['logLevel'] = DEFAULT_LOG_LEVEL
-                    
+
                 if 'backupDir' not in config:
                     config['backupDir'] = DEFAULT_BACKUP_DIR
-                    
+
+                if 'terminal' not in config:
+                    config['terminal'] = DEFAULT_TERMINAL
+
                 if 'displaySettings' not in config:
                     config['displaySettings'] = DEFAULT_DISPLAY_SETTINGS.copy()
-                
+                    
+                if 'terminalArgsMap' not in config:
+                    config['terminalArgsMap'] = DEFAULT_TERMINAL_ARGS_MAP.copy()
+
                 # 验证配置值
                 self._validate_config(config)
-                
+
                 return config
         except json.JSONDecodeError as e:
             print(f"配置文件格式错误: {e}")
             return {
                 'logLevel': DEFAULT_LOG_LEVEL,
                 'backupDir': DEFAULT_BACKUP_DIR,
-                'displaySettings': DEFAULT_DISPLAY_SETTINGS.copy()
+                'terminal': DEFAULT_TERMINAL,
+                'displaySettings': DEFAULT_DISPLAY_SETTINGS.copy(),
+                'terminalArgsMap': DEFAULT_TERMINAL_ARGS_MAP.copy()
             }
         except Exception as e:
             print(f"加载配置文件失败: {e}")
             return {
                 'logLevel': DEFAULT_LOG_LEVEL,
                 'backupDir': DEFAULT_BACKUP_DIR,
-                'displaySettings': DEFAULT_DISPLAY_SETTINGS.copy()
+                'terminal': DEFAULT_TERMINAL,
+                'displaySettings': DEFAULT_DISPLAY_SETTINGS.copy(),
+                'terminalArgsMap': DEFAULT_TERMINAL_ARGS_MAP.copy()
             }
 
     def _validate_config(self, config):
         """验证配置值的有效性
-        
+
         Args:
             config (dict): 要验证的配置字典
-            
+
         Raises:
             ValueError: 当配置值无效时
         """
@@ -99,14 +122,21 @@ class ConfigManager:
         if 'logLevel' in config and config['logLevel'] not in VALID_LOG_LEVELS:
             print(f"警告: 无效的日志级别 '{config['logLevel']}', 将使用默认值 '{DEFAULT_LOG_LEVEL}'")
             config['logLevel'] = DEFAULT_LOG_LEVEL
-            
+
         # 验证备份目录
         if 'backupDir' in config:
             backup_dir = config['backupDir']
             if not isinstance(backup_dir, str) or not backup_dir.strip():
                 print(f"警告: 无效的备份目录 '{backup_dir}', 将使用默认值 '{DEFAULT_BACKUP_DIR}'")
                 config['backupDir'] = DEFAULT_BACKUP_DIR
-        
+
+        # 验证终端设置
+        if 'terminal' in config:
+            terminal = config['terminal']
+            if not isinstance(terminal, str) or not terminal.strip():
+                print(f"警告: 无效的终端 '{terminal}', 将使用默认值 '{DEFAULT_TERMINAL}'")
+                config['terminal'] = DEFAULT_TERMINAL
+
         # 验证显示设置
         if 'displaySettings' in config:
             display_settings = config['displaySettings']
@@ -122,7 +152,20 @@ class ConfigManager:
                     elif settings['alignment'] not in VALID_ALIGNMENTS:
                         print(f"警告: 列 '{column}' 的对齐方式 '{settings['alignment']}' 无效，将使用默认值")
                         settings['alignment'] = DEFAULT_DISPLAY_SETTINGS.get(column, {}).get('alignment', 'center')
-    
+                        
+        # 验证终端参数映射表
+        if 'terminalArgsMap' in config:
+            terminal_args_map = config['terminalArgsMap']
+            if not isinstance(terminal_args_map, dict):
+                print("警告: terminalArgsMap 不是有效的字典，将使用默认值")
+                config['terminalArgsMap'] = DEFAULT_TERMINAL_ARGS_MAP.copy()
+            else:
+                # 验证每个终端的参数
+                for terminal, args in terminal_args_map.items():
+                    if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+                        print(f"警告: 终端 '{terminal}' 的参数无效，将使用默认值")
+                        terminal_args_map[terminal] = DEFAULT_TERMINAL_ARGS_MAP.get(terminal, ["-e"])
+
     def save_config(self, config):
         """保存主配置文件"""
         try:

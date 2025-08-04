@@ -8,10 +8,10 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 
 # 导入混入类
-from .ui_init import UIInitMixin
-from .table_operations import TableOperationsMixin
-from .ui_buttons import UIButtonsMixin
-from .system_tray import SystemTrayMixin
+from src.ui.main_window.ui_init import UIInitMixin
+from src.ui.main_window.table_operations import TableOperationsMixin
+from src.ui.main_window.ui_buttons import UIButtonsMixin
+from src.ui.main_window.system_tray import SystemTrayMixin
 
 # 导入页面
 from src.pages.backup_manager_page import BackupManagerPage

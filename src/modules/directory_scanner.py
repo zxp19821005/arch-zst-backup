@@ -4,8 +4,8 @@
 import os
 from pathlib import Path
 from typing import List, Dict, Optional
-from .logger import log
-from .package_parser import package_parser
+from src.modules.logger import log
+from src.modules.package_parser import package_parser
 
 class DirectoryScanner:
     """扫描目录中的软件包文件"""

@@ -3,8 +3,8 @@
 
 import re
 from typing import Dict, List, Optional
-from .package_parser import PackageParser, package_parser
-from .logger import log
+from src.modules.package_parser import PackageParser, package_parser
+from src.modules.logger import log
 
 class VersionComparator:
     """比较Arch Linux软件包版本"""

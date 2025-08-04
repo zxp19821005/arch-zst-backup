@@ -172,7 +172,7 @@ class PackageService:
                     log.error(f"删除文件 {file_path} 失败: {str(e)}")
                     failed_files.append(str(file_path))
 
-            from ..pages.common_utils import force_rescan_and_update_status_bar
+            from src.pages.common_utils import force_rescan_and_update_status_bar
             force_rescan_and_update_status_bar(self.cache_manager, self.cache_manager.count_duplicate_packages, 
                                              self.cache_manager.count_backupable_packages)
 
@@ -220,7 +220,7 @@ class PackageService:
                     log.error(f"删除文件 {file_path} 时出错: {str(e)}")
                     failed_files.append(str(file_path))
 
-            from ..pages.common_utils import force_rescan_and_update_status_bar
+            from src.pages.common_utils import force_rescan_and_update_status_bar
             force_rescan_and_update_status_bar(self.cache_manager, self.cache_manager.count_duplicate_packages, 
                                              self.cache_manager.count_backupable_packages)
 

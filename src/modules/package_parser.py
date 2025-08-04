@@ -5,7 +5,7 @@ import re
 import os
 from typing import Dict, Optional
 from pathlib import Path
-from .logger import log
+from src.modules.logger import log
 
 class PackageParser:
     """解析Arch Linux软件包文件名"""

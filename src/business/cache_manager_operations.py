@@ -234,15 +234,14 @@ class CacheManagerOperations:
         """检查系统更新"""
         log.info("开始检查系统更新")
         try:
-            self.cache_manager.process = QProcess()
-            self.cache_manager.process.finished.connect(lambda: self.cache_manager.on_update_finished())
-            self.cache_manager.process.errorOccurred.connect(self.cache_manager.on_update_error)
-
-            # 调用终端执行命令
-            command = "xterm"
-            args = ["-e", "bash", "-c", "paru; read -p '按回车键退出...'"]
-            log.debug(f"执行命令: {command} {args}")
-            self.cache_manager.process.start(command, args)
+            # 使用终端执行器执行命令
+            from utils.terminal_executor import TerminalExecutor
+            terminal_executor = TerminalExecutor()
+            terminal_executor.process.finished.connect(lambda: self.cache_manager.on_update_finished())
+            terminal_executor.process.errorOccurred.connect(self.cache_manager.on_update_error)
+            # 保存 process 对象到 cache_manager
+            self.cache_manager.process = terminal_executor.process
+            terminal_executor.execute_paru_command()
 
             if not self.cache_manager.process.waitForStarted(5000):
                 log.error("启动更新检查进程失败")

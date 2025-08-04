@@ -57,6 +57,11 @@ class BackupManagerUI:
         self.delete_button = QPushButton("删除")
         ButtonStyle.apply_danger_style(self.delete_button)
         button_layout.addWidget(self.delete_button)
+        
+        # 安装按钮
+        self.install_button = QPushButton("安装")
+        ButtonStyle.apply_primary_style(self.install_button)
+        button_layout.addWidget(self.install_button)
         main_layout.addLayout(button_layout)
 
         # 软件包表格
